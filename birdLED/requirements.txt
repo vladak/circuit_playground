@@ -1,0 +1,4 @@
+adafruit-circuitpython-minimqtt
+adafruit-circuitpython-logging
+adafruit-circuitpython-neopixel
+adafruit-circuitpython-veml7700
