@@ -85,20 +85,26 @@ def main():
         #
         # Black the pixels for a bit so that reliable light reading
         # can be acquired (without the light coming from the Neopixel BFF).
+        # Save the pixel values before and restore them after the light
+        # value is acquired to preserve smoothness of the moving colors.
         #
+        pixels_orig = pixels[:]
         pixels.fill(0)
         pixels.show()
         # The sleep seems to be needed to get good reading.
-        time.sleep(0.2)
+        # time.sleep(0.1)
         light = veml7700.light
         lux = veml7700.lux
+        pixels[:] = pixels_orig
         logger.debug(f"Ambient light: {light}")
         logger.debug(f"Lux: {lux}")
+
         # TODO: make the topic configurable
         mqtt_client.publish("devices/koupelna/qtpy",
             json.dumps({"light": light, "lux": lux}))
 
         # TODO: map this configuously
+        # use https://learn.adafruit.com/todbot-circuitpython-tricks/more-esoteric-tasks
         LIGHT_MIN = 50
         LIGHT_MAX = 800
         if light < 50:
@@ -130,6 +136,7 @@ def main():
             pixels.show()
             time.sleep(.1)
 
+        time.sleep(0.1)
 
 
 if __name__ == "__main__":
