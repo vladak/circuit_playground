@@ -44,8 +44,6 @@ def blink(color, brightness):
 
 
 def main():
-    # TODO: use supervisor to re-load code on failure
-
     logger = logging.getLogger(__name__)
     # TODO: make the log level configurable
     logger.setLevel(logging.DEBUG)
@@ -135,5 +133,11 @@ def main():
 
 
 if __name__ == "__main__":
+    #
+    # Rather than catch all possible exceptions and react, simply
+    # set the supervisor to reload the program.
+    #
+    supervisor.set_next_code_file("code.py", reload_on_error=True)
+
     main()
 
