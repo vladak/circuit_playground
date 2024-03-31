@@ -49,15 +49,16 @@ def map_range_cap(s, a1, a2, b1, b2):
     constrain the s value into a1,a2 range first, then map it to the range b1,b2
     based on https://learn.adafruit.com/todbot-circuitpython-tricks/more-esoteric-tasks
     """
-    if s < a1:
-        s = a1
-    if s > a2:
-        s = a2
+    s = max(s, a1)
+    s = min(s, a2)
 
     return b1 + ((s - a1) * (b2 - b1) / (a2 - a1))
 
 
 def main():
+    """
+    main loop
+    """
     logger = logging.getLogger(__name__)
     # TODO: make the log level configurable
     logger.setLevel(logging.DEBUG)
