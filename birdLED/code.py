@@ -26,7 +26,7 @@ SLEEP_COLOR = (255, 0, 0)  # Red
 WAKE_COLOR = (0, 0, 255)  # Blue
 
 LIGHT_MIN = 10
-LIGHT_MAX = 80
+LIGHT_MAX = 80  # should correspond to a state when the **some** light is on
 
 # TODO: configurable via secrets
 # Brightness must be a float or integer between 0.0 and 1.0, where 0.0 is off, and 1.0 is max.
