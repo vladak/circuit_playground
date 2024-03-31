@@ -8,12 +8,14 @@ Publish the data contiguously to MQTT topic.
 import json
 import ssl
 import time
+import traceback
 from secrets import secrets
 
 import adafruit_logging as logging
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
 import adafruit_veml7700
 import board
+import microcontroller
 import neopixel
 import socketpool
 import supervisor
@@ -124,9 +126,15 @@ def main():
             stamp = time.monotonic_ns() // 1_000_000_000
 
             # TODO: make the topic configurable
-            mqtt_client.publish(
-                "devices/koupelna/qtpy", json.dumps({"light": light, "lux": lux})
-            )
+            try:
+                mqtt_client.publish(
+                    "devices/koupelna/qtpy", json.dumps({"light": light, "lux": lux})
+                )
+            except (OSError, MQTT.MMQTTException) as pub_exc:
+                logger.error(f"failed to publish: {pub_exc}")
+                # If the reconnect fails with another exception, it is time to reload
+                # via the generic exception handling code around main().
+                mqtt_client.reconnect()
 
             # Map the light value contiguously into the brightness range.
             brightness = map_range_cap(
@@ -136,7 +144,13 @@ def main():
             pixels.brightness = brightness
 
         # To handle MQTT ping.
-        mqtt_client.loop(0.01)
+        try:
+            mqtt_client.loop(0.01)
+        except (OSError, MQTT.MMQTTException) as loop_exc:
+            logger.error(f"failed to publish: {loop_exc}")
+            # If the reconnect fails with another exception, it is time to reload
+            # via the generic exception handling code around main().
+            mqtt_client.reconnect()
 
         # TODO: fluctuate the brightness (within given boundary)
         for _ in range(10):
@@ -159,11 +173,26 @@ def main():
         time.sleep(0.1)
 
 
-if __name__ == "__main__":
-    #
-    # Rather than catch all possible exceptions and react, simply
-    # set the supervisor to reload the program.
-    #
-    supervisor.set_next_code_file("code.py", reload_on_error=True)
-
+try:
     main()
+except ConnectionError as e:
+    # When this happens, it usually means that the microcontroller's wifi/networking is botched.
+    # The only way to recover is to perform hard reset.
+    print(f"Performing hard reset")
+    microcontroller.reset()  # pylint: disable=no-member
+except MemoryError as e:
+    # This is usually the case of delayed exception from the 'import wifi' statement,
+    # possibly caused by a bug (resource leak) in CircuitPython that manifests
+    # after a sequence of ConnectionError exceptions thrown from withing the wifi module.
+    # Should not happen given the above 'except ConnectionError',
+    # however adding that here just in case.
+    print(f"Performing hard reset")
+    microcontroller.reset()  # pylint: disable=no-member
+except Exception as e:  # pylint: disable=broad-except
+    # This assumes that such exceptions are quite rare.
+    # Otherwise, this would drain the battery quickly by restarting
+    # over and over in a quick succession.
+    print("Code stopped by unhandled exception:")
+    print(traceback.format_exception(None, e, e.__traceback__))
+    print(f"Performing code reload")
+    supervisor.reload()
