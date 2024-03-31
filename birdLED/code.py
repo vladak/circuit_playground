@@ -1,17 +1,17 @@
-import time
-import adafruit_logging as logging
-import supervisor
-import board
-import wifi
-import ssl
-import socketpool
-import neopixel
-from rainbowio import colorwheel
-import adafruit_veml7700
-import adafruit_minimqtt.adafruit_minimqtt as MQTT
 import json
-
+import ssl
+import time
 from secrets import secrets
+
+import adafruit_logging as logging
+import adafruit_minimqtt.adafruit_minimqtt as MQTT
+import adafruit_veml7700
+import board
+import neopixel
+import socketpool
+import supervisor
+import wifi
+from rainbowio import colorwheel
 
 SLEEP_COLOR = (255, 0, 0)  # Red
 WAKE_COLOR = (0, 0, 255)  # Blue
