@@ -68,9 +68,9 @@ def main():
     logger.debug(f"IP: {wifi.radio.ipv4_address}")
 
     # Assumes Adafruit 5x5 NeoPixel Grid BFF
-    pixels = neopixel.NeoPixel(board.A3, 5 * 5,
-                               brightness=MIN_BRIGHTNESS,
-                               auto_write=False)
+    pixels = neopixel.NeoPixel(
+        board.A3, 5 * 5, brightness=MIN_BRIGHTNESS, auto_write=False
+    )
 
     i2c = board.STEMMA_I2C()
     veml7700 = adafruit_veml7700.VEML7700(i2c)
@@ -116,11 +116,14 @@ def main():
             stamp = time.monotonic_ns() // 1_000_000_000
 
             # TODO: make the topic configurable
-            mqtt_client.publish("devices/koupelna/qtpy",
-                                json.dumps({"light": light, "lux": lux}))
+            mqtt_client.publish(
+                "devices/koupelna/qtpy", json.dumps({"light": light, "lux": lux})
+            )
 
             # Map the light value contiguously into the brightness range.
-            brightness = map_range_cap(light, LIGHT_MIN, LIGHT_MAX, MIN_BRIGHTNESS, MAX_BRIGHTNESS)
+            brightness = map_range_cap(
+                light, LIGHT_MIN, LIGHT_MAX, MIN_BRIGHTNESS, MAX_BRIGHTNESS
+            )
             logger.debug(f"brightness -> {brightness}")
             pixels.brightness = brightness
 
@@ -143,7 +146,7 @@ def main():
                 # Select black or color depending on the bitmap pixel
                 pixels[20 + y] = colors[1]
             pixels.show()
-            time.sleep(.1)
+            time.sleep(0.1)
 
         time.sleep(0.1)
 
@@ -156,4 +159,3 @@ if __name__ == "__main__":
     supervisor.set_next_code_file("code.py", reload_on_error=True)
 
     main()
-
