@@ -1,7 +1,5 @@
-import os
 import time
 import adafruit_logging as logging
-import ipaddress
 import supervisor
 import board
 import wifi
@@ -9,7 +7,6 @@ import ssl
 import socketpool
 import neopixel
 from rainbowio import colorwheel
-import busio
 import adafruit_veml7700
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
 import json
@@ -19,18 +16,20 @@ from secrets import secrets
 SLEEP_COLOR = (255, 0, 0)  # Red
 WAKE_COLOR = (0, 0, 255)  # Blue
 
-# TODO: configurable
-# Canary brightness customisation.
+LIGHT_MIN = 50
+LIGHT_MAX = 800
+
+# TODO: configurable via secrets
 # Brightness must be a float or integer between 0.0 and 1.0, where 0.0 is off, and 1.0 is max.
-# This is the brightness of the canary during sleep time. It defaults to 0.2, or "20%".
-# Increase or decrease this value to change the brightness.
-LOW_BRIGHTNESS = 0.2
-# This is the brightness of the canary during wake time. It defaults to 0.7, or "70%".
-# Increase or decrease this value to change the brightness.
-HIGH_BRIGHTNESS = 0.9
+# This is the lowest brightness. It defaults to 0.2, or "20%".
+MIN_BRIGHTNESS = 0.2
+# This is the highest brightness to use. It defaults to 0.9, or "90%".
+# At this level the Neopixel BFF can get pretty hot.
+# TODO: monitor the temperature and scale down if too hot
+MAX_BRIGHTNESS = 0.9
 
 
-def blink(color, brightness):
+def blink(pixels, color, brightness):
     """
     Blink the NeoPixel LEDs a specific color.
 
@@ -41,6 +40,21 @@ def blink(color, brightness):
     time.sleep(0.5)
     pixels.fill((0, 0, 0))
     time.sleep(0.5)
+    pixels.show()
+
+
+# simple range mapper, like Arduino map()
+def map_range_cap(s, a1, a2, b1, b2):
+    """
+    constrain the s value into a1,a2 range first, then map it to the range b1,b2
+    based on https://learn.adafruit.com/todbot-circuitpython-tricks/more-esoteric-tasks
+    """
+    if s < a1:
+        s = a1
+    if s > a2:
+        s = a2
+
+    return b1 + ((s - a1) * (b2 - b1) / (a2 - a1))
 
 
 def main():
@@ -54,8 +68,8 @@ def main():
     logger.debug(f"IP: {wifi.radio.ipv4_address}")
 
     # Assumes Adafruit 5x5 NeoPixel Grid BFF
-    pixels = neopixel.NeoPixel(board.A3, 5*5,
-                               brightness=LOW_BRIGHTNESS,
+    pixels = neopixel.NeoPixel(board.A3, 5 * 5,
+                               brightness=MIN_BRIGHTNESS,
                                auto_write=False)
 
     i2c = board.STEMMA_I2C()
@@ -88,6 +102,7 @@ def main():
         # can be acquired (without the light coming from the Neopixel BFF).
         # Do this only once a second or so.
         #
+        # TODO: refactor
         if stamp < time.monotonic_ns() // 1_000_000_000 - 1:
             brightness = pixels.brightness
             pixels.brightness = 0
@@ -104,17 +119,10 @@ def main():
             mqtt_client.publish("devices/koupelna/qtpy",
                                 json.dumps({"light": light, "lux": lux}))
 
-        # TODO: map this configuously
-        # use https://learn.adafruit.com/todbot-circuitpython-tricks/more-esoteric-tasks
-        LIGHT_MIN = 50
-        LIGHT_MAX = 800
-        if light < 50:
-            brightness = HIGH_BRIGHTNESS
-        else:
-            brightness = LOW_BRIGHTNESS
-
-        logger.debug(f"brightness -> {brightness}")
-        pixels.brightness = brightness
+            # Map the light value contiguously into the brightness range.
+            brightness = map_range_cap(light, LIGHT_MIN, LIGHT_MAX, MIN_BRIGHTNESS, MAX_BRIGHTNESS)
+            logger.debug(f"brightness -> {brightness}")
+            pixels.brightness = brightness
 
         # To handle MQTT ping.
         mqtt_client.loop(0.01)
@@ -133,7 +141,7 @@ def main():
             # Draw in the next line of text
             for y in range(5):
                 # Select black or color depending on the bitmap pixel
-                pixels[20+y] = colors[1]
+                pixels[20 + y] = colors[1]
             pixels.show()
             time.sleep(.1)
 
