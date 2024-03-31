@@ -116,18 +116,6 @@ def main():
             lux = veml7700.lux
             logger.debug(f"Ambient light: {light}")
             logger.debug(f"Lux: {lux}")
-            publish_stamp = time.monotonic_ns() // 1_000_000_000
-
-            # TODO: make the topic configurable
-            try:
-                mqtt_client.publish(
-                    "devices/koupelna/qtpy", json.dumps({"light": light, "lux": lux})
-                )
-            except (OSError, MQTT.MMQTTException) as pub_exc:
-                logger.error(f"failed to publish: {pub_exc}")
-                # If the reconnect fails with another exception, it is time to reload
-                # via the generic exception handling code around main().
-                mqtt_client.reconnect()
 
             # Map the light value contiguously into the brightness range.
             brightness = map_range_cap_inv(
@@ -135,6 +123,26 @@ def main():
             )
             logger.debug(f"brightness -> {brightness}")
             pixels.brightness = brightness
+
+            # TODO: make the topic configurable
+            try:
+                mqtt_client.publish(
+                    "devices/koupelna/qtpy",
+                    json.dumps(
+                        {
+                            "light": light,
+                            "lux": lux,
+                            "brightness": brightness,
+                            "cpu_temp": microcontroller.cpu.temperature,
+                        }
+                    ),
+                )
+                publish_stamp = time.monotonic_ns() // 1_000_000_000
+            except (OSError, MQTT.MMQTTException) as pub_exc:
+                logger.error(f"failed to publish: {pub_exc}")
+                # If the reconnect fails with another exception, it is time to reload
+                # via the generic exception handling code around main().
+                mqtt_client.reconnect()
 
         # TODO: fluctuate the brightness (within given boundary)
         for _ in range(10):
