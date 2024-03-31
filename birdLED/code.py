@@ -52,16 +52,15 @@ def blink(pixels, color, brightness):
     pixels.show()
 
 
-# simple range mapper, like Arduino map()
-def map_range_cap(s, a1, a2, b1, b2):
+# simple inverted range mapper, like Arduino map()
+def map_range_cap_inv(s, a1, a2, b1, b2):
     """
-    constrain the s value into a1,a2 range first, then map it to the range b1,b2
+    constrain the s value into a1,a2 range first, then map it to the range b1,b2 inverted
     based on https://learn.adafruit.com/todbot-circuitpython-tricks/more-esoteric-tasks
     """
     s = max(s, a1)
     s = min(s, a2)
-
-    return b1 + ((s - a1) * (b2 - b1) / (a2 - a1))
+    return b2 - ((s - a1) * (b2 - b1) / (a2 - a1))
 
 
 def main():
@@ -105,25 +104,19 @@ def main():
     pixels.show()
     colors = [0, 0]
     hue = 0
-    stamp = 0
+    publish_stamp = 0
     while True:
         #
-        # Black the pixels for a bit so that reliable light reading
-        # can be acquired (without the light coming from the Neopixel BFF).
-        # Do this only once a second or so.
+        # Acquire light metrics and publish them. Do this only once a second or so
+        # not to spam the MQTT topic too much.
         #
         # TODO: refactor
-        if stamp < time.monotonic_ns() // 1_000_000_000 - 1:
-            brightness = pixels.brightness
-            pixels.brightness = 0
-            pixels.show()
+        if publish_stamp < time.monotonic_ns() // 1_000_000_000 - 1:
             light = veml7700.light
             lux = veml7700.lux
-            pixels.brightness = brightness
-            pixels.show()
             logger.debug(f"Ambient light: {light}")
             logger.debug(f"Lux: {lux}")
-            stamp = time.monotonic_ns() // 1_000_000_000
+            publish_stamp = time.monotonic_ns() // 1_000_000_000
 
             # TODO: make the topic configurable
             try:
@@ -137,20 +130,11 @@ def main():
                 mqtt_client.reconnect()
 
             # Map the light value contiguously into the brightness range.
-            brightness = map_range_cap(
+            brightness = map_range_cap_inv(
                 light, LIGHT_MIN, LIGHT_MAX, MIN_BRIGHTNESS, MAX_BRIGHTNESS
             )
             logger.debug(f"brightness -> {brightness}")
             pixels.brightness = brightness
-
-        # To handle MQTT ping.
-        try:
-            mqtt_client.loop(0.01)
-        except (OSError, MQTT.MMQTTException) as loop_exc:
-            logger.error(f"failed to publish: {loop_exc}")
-            # If the reconnect fails with another exception, it is time to reload
-            # via the generic exception handling code around main().
-            mqtt_client.reconnect()
 
         # TODO: fluctuate the brightness (within given boundary)
         for _ in range(10):
@@ -170,7 +154,14 @@ def main():
             pixels.show()
             time.sleep(0.1)
 
-        time.sleep(0.1)
+        # To handle MQTT ping. Also used not to loop too quickly.
+        try:
+            mqtt_client.loop(0.1)
+        except (OSError, MQTT.MMQTTException) as loop_exc:
+            logger.error(f"failed to publish: {loop_exc}")
+            # If the reconnect fails with another exception, it is time to reload
+            # via the generic exception handling code around main().
+            mqtt_client.reconnect()
 
 
 try:
@@ -178,7 +169,7 @@ try:
 except ConnectionError as e:
     # When this happens, it usually means that the microcontroller's wifi/networking is botched.
     # The only way to recover is to perform hard reset.
-    print(f"Performing hard reset")
+    print("Performing hard reset")
     microcontroller.reset()  # pylint: disable=no-member
 except MemoryError as e:
     # This is usually the case of delayed exception from the 'import wifi' statement,
@@ -186,7 +177,7 @@ except MemoryError as e:
     # after a sequence of ConnectionError exceptions thrown from withing the wifi module.
     # Should not happen given the above 'except ConnectionError',
     # however adding that here just in case.
-    print(f"Performing hard reset")
+    print("Performing hard reset")
     microcontroller.reset()  # pylint: disable=no-member
 except Exception as e:  # pylint: disable=broad-except
     # This assumes that such exceptions are quite rare.
@@ -194,5 +185,5 @@ except Exception as e:  # pylint: disable=broad-except
     # over and over in a quick succession.
     print("Code stopped by unhandled exception:")
     print(traceback.format_exception(None, e, e.__traceback__))
-    print(f"Performing code reload")
+    print("Performing code reload")
     supervisor.reload()
