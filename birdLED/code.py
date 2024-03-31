@@ -1,3 +1,10 @@
+"""
+Remix of https://learn.adafruit.com/canary-nightlight
+
+Instead of making the LED light based on time, use the VEML7700 light sensor.
+Publish the data contiguously to MQTT topic.
+"""
+
 import json
 import ssl
 import time
@@ -132,7 +139,7 @@ def main():
         mqtt_client.loop(0.01)
 
         # TODO: fluctuate the brightness (within given boundary)
-        for i in range(10):
+        for _ in range(10):
             # Use a rainbow of colors, shifting each column of pixels
             hue = hue + 7
             if hue >= 256:
