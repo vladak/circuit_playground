@@ -7,9 +7,9 @@ Publish the data contiguously to MQTT topic.
 
 import json
 import ssl
+import sys
 import time
 import traceback
-from secrets import secrets
 
 import adafruit_logging as logging
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
@@ -22,18 +22,110 @@ import supervisor
 import wifi
 from rainbowio import colorwheel
 
+from logutil import get_log_level
 
-LIGHT_MIN = 10
-LIGHT_MAX = 50  # should correspond to a state when the **some** light is on
+try:
+    from secrets import secrets
+except ImportError:
+    print(
+        "WiFi credentials and configuration are kept in secrets.py, please add them there!"
+    )
+    raise
 
-# TODO: configurable via secrets
-# Brightness must be a float or integer between 0.0 and 1.0, where 0.0 is off, and 1.0 is max.
-# This is the lowest brightness. It defaults to 0.2, or "20%".
-MIN_BRIGHTNESS = 0.1
-# This is the highest brightness to use. It defaults to 0.9, or "90%".
-# At this level the Neopixel BFF can get pretty hot.
-# TODO: monitor the temperature and scale down if too hot
-MAX_BRIGHTNESS = 0.9
+
+# tunables
+BROKER_PORT = "broker_port"
+MQTT_TOPIC = "mqtt_topic"
+BROKER = "broker"
+PASSWORD = "password"
+SSID = "ssid"
+LOG_LEVEL = "log_level"
+BRIGHTNESS_RANGE = "brightness_range"
+LIGHT_RANGE = "light_range"
+
+
+class SecretsException(Exception):
+    pass
+
+
+def bail(message):
+    """
+    Raise distinct exception to handle on the top level.
+    """
+    raise SecretsException(message)
+
+
+def check_string(name, mandatory=True):
+    """
+    Check is string with given name is present in secrets.
+    """
+    value = secrets.get(name)
+    if value is None and mandatory:
+        bail(f"{name} is missing")
+
+    if value and not isinstance(value, str):
+        bail(f"not a string value for {name}: {value}")
+
+
+def check_int(name, mandatory=True):
+    """
+    Check is integer with given name is present in secrets.
+    """
+    value = secrets.get(name)
+    if value is None and mandatory:
+        bail(f"{name} is missing")
+
+    if value and not isinstance(value, int):
+        bail(f"not a integer value for {name}: {value}")
+
+
+def check_tuple(name, mandatory=True, numitems=2):
+    """
+    Check is tuple with given name is present in secrets.
+    """
+    value = secrets.get(name)
+    if value is None and mandatory:
+        bail(f"{name} is missing")
+
+    if value and not isinstance(value, tuple):
+        bail(f"not a integer value for {name}: {value}")
+
+    if len(value) != numitems:
+        bail(f"tuple must have {numitems} items: {value}")
+
+
+def check_mandatory_tunables():
+    """
+    Check that mandatory tunables are present and of correct type.
+    Will exit the program on error.
+    """
+    check_string(LOG_LEVEL)
+    check_string(SSID)
+    check_string(PASSWORD)
+    check_string(BROKER)
+    check_string(MQTT_TOPIC)
+
+    check_int(BROKER_PORT)
+
+    check_tuple(BRIGHTNESS_RANGE)
+    check_tuple(LIGHT_RANGE)
+
+    # Brightness must be a float or integer between 0.0 and 1.0, where 0.0 is off, and 1.0 is max.
+    for value in secrets.get(BRIGHTNESS_RANGE):
+        if value is None:
+            bail(f"{BRIGHTNESS_RANGE} value is None")
+        if not isinstance(value, float):
+            bail(f"{value} must be float")
+        if value > 1:
+            bail(f"{value} must be smaller than 1")
+
+    for value in secrets.get(LIGHT_RANGE):
+        if value is None:
+            bail(f"{LIGHT_RANGE} value is None")
+        if not isinstance(value, int):
+            bail(f"{value} must be int")
+        if value < 0:
+            bail(f"{value} must be positive integer")
 
 
 def blink(pixels, color, brightness):
@@ -50,7 +142,7 @@ def blink(pixels, color, brightness):
     pixels.show()
 
 
-# simple inverted range mapper, like Arduino map()
+# simple inverted range mapper, like Arduino map() but inverted
 def map_range_cap_inv(s, a1, a2, b1, b2):
     """
     constrain the s value into a1,a2 range first, then map it to the range b1,b2 inverted
@@ -65,18 +157,22 @@ def main():
     """
     main loop
     """
-    logger = logging.getLogger(__name__)
-    # TODO: make the log level configurable
-    logger.setLevel(logging.DEBUG)
+    check_mandatory_tunables()
 
-    logger.info(f"Connecting to wifi {secrets['SSID']}")
-    wifi.radio.connect(secrets["SSID"], secrets["password"], timeout=10)
-    logger.info(f"Connected to {secrets['SSID']}")
+    log_level = get_log_level(secrets[LOG_LEVEL])
+    logger = logging.getLogger("")
+    logger.setLevel(log_level)
+
+    logger.info("Running")
+
+    logger.info(f"Connecting to wifi {secrets[SSID]}")
+    wifi.radio.connect(secrets[SSID], secrets[PASSWORD], timeout=10)
+    logger.info(f"Connected to {secrets[SSID]}")
     logger.debug(f"IP: {wifi.radio.ipv4_address}")
 
     # Assumes Adafruit 5x5 NeoPixel Grid BFF
     pixels = neopixel.NeoPixel(
-        board.A3, 5 * 5, brightness=MIN_BRIGHTNESS, auto_write=False
+        board.A3, 5 * 5, brightness=secrets.get(BRIGHTNESS_RANGE)[0], auto_write=False
     )
 
     i2c = board.STEMMA_I2C()
@@ -84,18 +180,16 @@ def main():
 
     pool = socketpool.SocketPool(wifi.radio)
 
-    # TODO: make this configurable
-    host = "172.40.0.3"
-    port = 1883
     mqtt_client = MQTT.MQTT(
-        broker=host,
-        port=port,
+        broker=secrets[BROKER],
+        port=secrets[BROKER_PORT],
         socket_pool=pool,
         ssl_context=ssl.create_default_context(),
         recv_timeout=5,
         socket_timeout=0.01,
     )
 
+    logger.info("Connecting to MQTT broker")
     mqtt_client.connect()
 
     pixels.fill(0)
@@ -117,15 +211,19 @@ def main():
 
             # Map the light value contiguously into the brightness range.
             brightness = map_range_cap_inv(
-                light, LIGHT_MIN, LIGHT_MAX, MIN_BRIGHTNESS, MAX_BRIGHTNESS
+                light,
+                secrets.get(LIGHT_RANGE)[0],
+                secrets.get(LIGHT_RANGE)[1],
+                secrets.get(BRIGHTNESS_RANGE)[0],
+                secrets.get(BRIGHTNESS_RANGE)[1],
             )
             logger.debug(f"brightness -> {brightness}")
             pixels.brightness = brightness
 
-            # TODO: make the topic configurable
+            # TODO: monitor the temperature and scale down if too hot
             try:
                 mqtt_client.publish(
-                    "devices/koupelna/qtpy",
+                    secrets[MQTT_TOPIC],
                     json.dumps(
                         {
                             "light": light,
@@ -142,7 +240,7 @@ def main():
                 # via the generic exception handling code around main().
                 mqtt_client.reconnect()
 
-        # TODO: fluctuate the brightness (within given boundary)
+        # TODO: fluctuate the brightness (within given boundary) for better effect
         for _ in range(10):
             # Use a rainbow of colors, shifting each column of pixels
             hue = hue + 7
@@ -172,6 +270,8 @@ def main():
 
 try:
     main()
+except SecretsException as e:
+    print(f"secrets error: {e}")
 except ConnectionError as e:
     # When this happens, it usually means that the microcontroller's wifi/networking is botched.
     # The only way to recover is to perform hard reset.
