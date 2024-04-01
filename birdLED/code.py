@@ -243,7 +243,7 @@ def main():
                 logger.debug(
                     f"scaling brightness from {brightness} down by factor of 2"
                 )
-                brightness //= 2
+                brightness /= 2
 
             logger.debug(f"brightness -> {brightness}")
             pixels.brightness = brightness
