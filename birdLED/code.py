@@ -238,7 +238,7 @@ def main():
 
             # Scale the brightness down during certain hours.
             cur_hr, cur_min = get_time(ntp)
-            logger.debug(f"current time: {cur_hr}:{cur_min}")
+            logger.debug(f"current time: {cur_hr:02}:{cur_min:02}")
             if secrets.get(HOURS_RANGE)[0] <= cur_hr <= secrets.get(HOURS_RANGE)[1]:
                 logger.debug(
                     f"scaling brightness from {brightness} down by factor of 2"
