@@ -220,33 +220,13 @@ def main():
         # Acquire light metrics and publish them. Do this only once a second or so
         # not to spam the MQTT topic too much.
         #
-        # TODO: refactor
         if publish_stamp < time.monotonic_ns() // 1_000_000_000 - 1:
             light = veml7700.light
             lux = veml7700.lux
             logger.debug(f"Ambient light: {light}")
             logger.debug(f"Lux: {lux}")
 
-            # Map the light value contiguously into the brightness range.
-            brightness = map_range_cap_inv(
-                light,
-                secrets.get(LIGHT_RANGE)[0],
-                secrets.get(LIGHT_RANGE)[1],
-                secrets.get(BRIGHTNESS_RANGE)[0],
-                secrets.get(BRIGHTNESS_RANGE)[1],
-            )
-
-            # Scale the brightness down during certain hours.
-            cur_hr, cur_min = get_time(ntp)
-            logger.debug(f"current time: {cur_hr:02}:{cur_min:02}")
-            if secrets.get(HOURS_RANGE)[0] <= cur_hr <= secrets.get(HOURS_RANGE)[1]:
-                logger.debug(
-                    f"scaling brightness from {brightness} down by factor of 2"
-                )
-                brightness /= 2
-
-            logger.debug(f"brightness -> {brightness}")
-            pixels.brightness = brightness
+            brightness = set_brightness(light, ntp, pixels)
 
             # TODO: monitor the temperature and scale down if too hot
             try:
@@ -268,23 +248,7 @@ def main():
                 # via the generic exception handling code around main().
                 mqtt_client.reconnect()
 
-        # TODO: fluctuate the brightness (within given boundary) for better effect
-        for _ in range(10):
-            # Use a rainbow of colors, shifting each column of pixels
-            hue = hue + 7
-            if hue >= 256:
-                hue = hue - 256
-
-            colors[1] = colorwheel(hue)
-            # Scoot the old text left by 1 pixel
-            pixels[0:20] = pixels[5:25]
-
-            # Draw in the next line of text
-            for y in range(5):
-                # Select black or color depending on the bitmap pixel
-                pixels[20 + y] = colors[1]
-            pixels.show()
-            time.sleep(0.1)
+        display_rainbow(colors, hue, pixels)
 
         # To handle MQTT ping. Also used not to loop too quickly.
         try:
@@ -294,6 +258,54 @@ def main():
             # If the reconnect fails with another exception, it is time to reload
             # via the generic exception handling code around main().
             mqtt_client.reconnect()
+
+
+def display_rainbow(colors, hue, pixels):
+    """
+    Display changing rainbow using the pixels.
+    """
+    # TODO: fluctuate the brightness (within given boundary) for better effect
+    for _ in range(10):
+        # Use a rainbow of colors, shifting each column of pixels
+        hue = hue + 7
+        if hue >= 256:
+            hue = hue - 256
+
+        colors[1] = colorwheel(hue)
+        # Scoot the old text left by 1 pixel
+        pixels[0:20] = pixels[5:25]
+
+        # Draw in the next line of text
+        for y in range(5):
+            # Select black or color depending on the bitmap pixel
+            pixels[20 + y] = colors[1]
+        pixels.show()
+        time.sleep(0.1)
+
+
+def set_brightness(light, ntp, pixels):
+    """
+    Set brightness of the pixels based on current light level and time.
+    """
+    logger = logging.getLogger(__name__)
+
+    # Map the light value contiguously into the brightness range.
+    brightness = map_range_cap_inv(
+        light,
+        secrets.get(LIGHT_RANGE)[0],
+        secrets.get(LIGHT_RANGE)[1],
+        secrets.get(BRIGHTNESS_RANGE)[0],
+        secrets.get(BRIGHTNESS_RANGE)[1],
+    )
+    # Scale the brightness down during certain hours.
+    cur_hr, cur_min = get_time(ntp)
+    logger.debug(f"current time: {cur_hr:02}:{cur_min:02}")
+    if secrets.get(HOURS_RANGE)[0] <= cur_hr <= secrets.get(HOURS_RANGE)[1]:
+        logger.debug(f"scaling brightness from {brightness} down by factor of 2")
+        brightness /= 2
+    logger.debug(f"brightness -> {brightness}")
+    pixels.brightness = brightness
+    return brightness
 
 
 try:
