@@ -7,12 +7,12 @@ Publish the data contiguously to MQTT topic.
 
 import json
 import ssl
-import sys
 import time
 import traceback
 
 import adafruit_logging as logging
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
+import adafruit_ntp
 import adafruit_veml7700
 import board
 import microcontroller
@@ -23,6 +23,7 @@ import wifi
 from rainbowio import colorwheel
 
 from logutil import get_log_level
+from timeutil import get_time
 
 try:
     from secrets import secrets
@@ -42,10 +43,13 @@ SSID = "ssid"
 LOG_LEVEL = "log_level"
 BRIGHTNESS_RANGE = "brightness_range"
 LIGHT_RANGE = "light_range"
+HOURS_RANGE = "hours_range"
 
 
 class SecretsException(Exception):
-    pass
+    """
+    Raised on missing or invalid configuration item.
+    """
 
 
 def bail(message):
@@ -109,6 +113,7 @@ def check_mandatory_tunables():
 
     check_tuple(BRIGHTNESS_RANGE)
     check_tuple(LIGHT_RANGE)
+    check_tuple(HOURS_RANGE)
 
     # Brightness must be a float or integer between 0.0 and 1.0, where 0.0 is off, and 1.0 is max.
     for value in secrets.get(BRIGHTNESS_RANGE):
@@ -126,6 +131,14 @@ def check_mandatory_tunables():
             bail(f"{value} must be int")
         if value < 0:
             bail(f"{value} must be positive integer")
+
+    for value in secrets.get(HOURS_RANGE):
+        if value is None:
+            bail(f"{HOURS_RANGE} value is None")
+        if not isinstance(value, int):
+            bail(f"{value} must be int")
+        if value < 0 or value > 24:
+            bail(f"{value} must be positive integer and less than 24")
 
 
 def blink(pixels, color, brightness):
@@ -180,6 +193,11 @@ def main():
 
     pool = socketpool.SocketPool(wifi.radio)
 
+    logger.debug("setting NTP up")
+    # The code is supposed to be running in specific time zone
+    # with NTP server running on the default router.
+    ntp = adafruit_ntp.NTP(pool, server=str(wifi.radio.ipv4_gateway), tz_offset=1)
+
     mqtt_client = MQTT.MQTT(
         broker=secrets[BROKER],
         port=secrets[BROKER_PORT],
@@ -217,6 +235,16 @@ def main():
                 secrets.get(BRIGHTNESS_RANGE)[0],
                 secrets.get(BRIGHTNESS_RANGE)[1],
             )
+
+            # Scale the brightness down during certain hours.
+            cur_hr, cur_min = get_time(ntp)
+            logger.debug(f"current time: {cur_hr}:{cur_min}")
+            if secrets.get(HOURS_RANGE)[0] <= cur_hr <= secrets.get(HOURS_RANGE)[1]:
+                logger.debug(
+                    f"scaling brightness from {brightness} down by factor of 2"
+                )
+                brightness //= 2
+
             logger.debug(f"brightness -> {brightness}")
             pixels.brightness = brightness
 
