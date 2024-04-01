@@ -228,7 +228,7 @@ def main():
 
             brightness = set_brightness(light, ntp, pixels)
 
-            # TODO: monitor the temperature and scale down if too hot
+            # TODO: monitor the temperature and scale the brightness down if too hot
             try:
                 mqtt_client.publish(
                     secrets[MQTT_TOPIC],
