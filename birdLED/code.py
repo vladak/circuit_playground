@@ -29,7 +29,7 @@ LIGHT_MAX = 50  # should correspond to a state when the **some** light is on
 # TODO: configurable via secrets
 # Brightness must be a float or integer between 0.0 and 1.0, where 0.0 is off, and 1.0 is max.
 # This is the lowest brightness. It defaults to 0.2, or "20%".
-MIN_BRIGHTNESS = 0.2
+MIN_BRIGHTNESS = 0.1
 # This is the highest brightness to use. It defaults to 0.9, or "90%".
 # At this level the Neopixel BFF can get pretty hot.
 # TODO: monitor the temperature and scale down if too hot
