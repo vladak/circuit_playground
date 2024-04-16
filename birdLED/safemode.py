@@ -31,12 +31,13 @@ safemode_dict["safemode_reason"] = str(supervisor.runtime.safe_mode_reason)
 safemode_dict["safemode_time"] = time.monotonic()
 safemode_dict["safemode_time_ns"] = time.monotonic_ns()
 
-# write dict as JSON
+# write dict as JSON. This will overwrite any pre-existing file.
 precode_file_write("/safemode.json", json.dumps(safemode_dict))  # use storage.remount()
 
-if supervisor.runtime.safe_mode_reason == supervisor.SafeModeReason.HARD_FAULT:
-    # pylint: disable=no-member
-    microcontroller.reset()  # Reset and start over.
-
-# Otherwise, do nothing. The safe mode reason will be printed in the
-# console, and nothing will run.
+if False:  # check for any safemode conditions where we shouldn't RESET
+    # Do nothing. The safe mode reason will be printed in the console,
+    # and nothing will run.
+    pass
+else:
+    # RESET out of safe mode
+    microcontroller.reset()  # or alarm.exit_and_deep_sleep()
