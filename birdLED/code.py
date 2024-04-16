@@ -17,8 +17,14 @@ import adafruit_veml7700
 import board
 import microcontroller
 import neopixel
+
+# pylint: disable=import-error
 import socketpool
+
+# pylint: disable=import-error
 import supervisor
+
+# pylint: disable=import-error
 import wifi
 from rainbowio import colorwheel
 
@@ -173,7 +179,7 @@ def main():
     check_mandatory_tunables()
 
     log_level = get_log_level(secrets[LOG_LEVEL])
-    logger = logging.getLogger("")
+    logger = logging.getLogger(__name__)
     logger.setLevel(log_level)
 
     logger.info("Running")
@@ -188,6 +194,7 @@ def main():
         board.A3, 5 * 5, brightness=secrets.get(BRIGHTNESS_RANGE)[0], auto_write=False
     )
 
+    # pylint: disable=no-member
     i2c = board.STEMMA_I2C()
     veml7700 = adafruit_veml7700.VEML7700(i2c)
 
@@ -215,40 +222,13 @@ def main():
     colors = [0, 0]
     hue = 0
     publish_stamp = 0
+    brightness = 0
     while True:
-        #
-        # Acquire light metrics and publish them. Do this only once a second or so
-        # not to spam the MQTT topic too much.
-        #
-        if publish_stamp < time.monotonic_ns() // 1_000_000_000 - 1:
-            light = veml7700.light
-            lux = veml7700.lux
-            logger.debug(f"Ambient light: {light}")
-            logger.debug(f"Lux: {lux}")
+        brightness, publish_stamp = get_brightness(
+            mqtt_client, ntp, pixels, publish_stamp, veml7700, brightness
+        )
 
-            brightness = set_brightness(light, ntp, pixels)
-
-            # TODO: monitor the temperature and scale the brightness down if too hot
-            try:
-                mqtt_client.publish(
-                    secrets[MQTT_TOPIC],
-                    json.dumps(
-                        {
-                            "light": light,
-                            "lux": lux,
-                            "brightness": brightness,
-                            "cpu_temp": microcontroller.cpu.temperature,
-                        }
-                    ),
-                )
-                publish_stamp = time.monotonic_ns() // 1_000_000_000
-            except (OSError, MQTT.MMQTTException) as pub_exc:
-                logger.error(f"failed to publish: {pub_exc}")
-                # If the reconnect fails with another exception, it is time to reload
-                # via the generic exception handling code around main().
-                mqtt_client.reconnect()
-
-        display_rainbow(colors, hue, pixels)
+        hue = display_rainbow(colors, hue, pixels)
 
         # To handle MQTT ping. Also used not to loop too quickly.
         try:
@@ -260,9 +240,58 @@ def main():
             mqtt_client.reconnect()
 
 
+# pylint: disable=too-many-arguments
+def get_brightness(mqtt_client, ntp, pixels, publish_stamp, veml7700, brightness):
+    """
+    Acquire light metrics and publish them.
+    Do this only once a second or so not to spam the MQTT topic too much.
+    If called when it is not time yet for the sensor readings, return the original
+    brightness value passed in as a parameter.
+
+    Return the brightness level based on the light value and the time of publish.
+    """
+    logger = logging.getLogger(__name__)
+
+    logger.debug(f"publish stamp: {publish_stamp}")
+    if publish_stamp < time.monotonic_ns() // 1_000_000_000 - 1:
+        light = veml7700.light
+        lux = veml7700.lux
+        logger.debug(f"Ambient light: {light}")
+        logger.debug(f"Lux: {lux}")
+
+        brightness = set_brightness(light, ntp, pixels)
+
+        # TODO: monitor the temperature and scale the brightness down if too hot
+        try:
+            mqtt_client.publish(
+                secrets[MQTT_TOPIC],
+                json.dumps(
+                    {
+                        "light": light,
+                        "lux": lux,
+                        "brightness": brightness,
+                        # pylint: disable=no-member
+                        "cpu_temp": microcontroller.cpu.temperature,
+                    }
+                ),
+            )
+            publish_stamp = time.monotonic_ns() // 1_000_000_000
+        except (OSError, MQTT.MMQTTException) as pub_exc:
+            logger.error(f"failed to publish: {pub_exc}")
+            # If the reconnect fails with another exception, it is time to reload
+            # via the generic exception handling code around main().
+            mqtt_client.reconnect()
+
+    return brightness, publish_stamp
+
+
 def display_rainbow(colors, hue, pixels):
     """
     Display changing rainbow using the pixels.
+    Assumes 5x5 Neopixel BFF.
+
+    Return current hue value so that it can be used in the caller
+    and passed in the next call as the hue argument.
     """
     # TODO: fluctuate the brightness (within given boundary) for better effect
     for _ in range(10):
@@ -279,8 +308,11 @@ def display_rainbow(colors, hue, pixels):
         for y in range(5):
             # Select black or color depending on the bitmap pixel
             pixels[20 + y] = colors[1]
+
         pixels.show()
         time.sleep(0.1)
+
+    return hue
 
 
 def set_brightness(light, ntp, pixels):
@@ -302,7 +334,7 @@ def set_brightness(light, ntp, pixels):
     logger.debug(f"current time: {cur_hr:02}:{cur_min:02}")
     if secrets.get(HOURS_RANGE)[0] <= cur_hr <= secrets.get(HOURS_RANGE)[1]:
         logger.debug(f"scaling brightness from {brightness} down by factor of 2")
-        brightness /= 2
+        brightness = max(brightness / 2, secrets.get(BRIGHTNESS_RANGE)[0])
     logger.debug(f"brightness -> {brightness}")
     pixels.brightness = brightness
     return brightness
