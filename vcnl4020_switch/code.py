@@ -57,6 +57,8 @@ def main():
 
     # According to the datasheet (https://cdn-learn.adafruit.com/assets/assets/000/124/959/original/vcnl4020.pdf?1696620539)
     # the current range is (10, 200) mA, settable in 10 mA increments.
+    # Higher current values means bigger sensitivity for longer (> 100 mm) distances,
+    # however the range of values shifts with the current increase.
     # sensor.led_current = 200
 
     proximity_state = BinaryState()
