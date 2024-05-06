@@ -54,7 +54,10 @@ def main():
     # print(f"LED current: {sensor.led_current}")
     # sensor.low_threshold = (3000,)
     # sensor.low_threshold_interrupt = True
-    # sensor.led_current = 500
+
+    # According to the datasheet (https://cdn-learn.adafruit.com/assets/assets/000/124/959/original/vcnl4020.pdf?1696620539)
+    # the current range is (10, 200) mA, settable in 10 mA increments.
+    # sensor.led_current = 200
 
     proximity_state = BinaryState()
 
