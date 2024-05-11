@@ -30,8 +30,6 @@ print("Frequency deviation: {0}hz".format(rfm69.frequency_deviation))
 print("Waiting for packets...")
 while True:
     packet = rfm69.receive(timeout=0.5)
-    if packet is None:
-        print("Received nothing! Listening again...")
-    else:
-        print("Received (raw bytes): {0}".format(packet))
-        # TODO: print bytes that are ASCII printable, other in hex
+    if packet:
+        # TODO: print bytes that are ASCII printable, others in hex
+        print("Received ({len(packet)} bytes): {0}".format(packet))
