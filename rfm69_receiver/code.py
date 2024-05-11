@@ -10,8 +10,8 @@ import adafruit_rfm69
 
 
 # Assumes certain witing of the Radio FeatherWing.
-CS = digitalio.DigitalInOut(board.D14)
-RESET = digitalio.DigitalInOut(board.D32)
+CS = digitalio.DigitalInOut(board.D5)
+RESET = digitalio.DigitalInOut(board.D6)
 
 spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
 
