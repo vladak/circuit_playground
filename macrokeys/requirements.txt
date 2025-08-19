@@ -1,0 +1,5 @@
+adafruit_bus_device
+adafruit_hid
+adafruit_neokey
+adafruit_pixelbuf
+adafruit_seesaw
