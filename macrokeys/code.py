@@ -32,6 +32,8 @@ def map_key(key):
         return Keycode.SPACE
     if key == ";" or key == ":":
         return Keycode.SEMICOLON
+    if key == "=":
+        return Keycode.EQUALS
 
     raise ValueError(f"unsupported key: '{key}'")
 
@@ -56,16 +58,28 @@ class KeyAction:
         If the 'atonce' argument is set to True all the values in 'vals'
         should be sent at once which is handy e.g. for modifier keys.
         """
-        self.vals = vals
+        if isinstance(vals, list):
+            self.vals = vals
+        else:
+            self.vals = [vals]
+
         self.atonce = atonce
 
 
 # switch action definitons
 switches = [([KeyAction(True, [Keycode.SHIFT, map_key(":")]),
-    KeyAction(False, get_keys("set paste"))], 0xFF0000),
+    KeyAction(False, get_keys("set paste")),
+    KeyAction(False, Keycode.ENTER),
+    KeyAction(True, [Keycode.SHIFT, map_key(":")]),
+    KeyAction(False, get_keys("set mouse=")),
+    KeyAction(True, [Keycode.SHIFT, Keycode.QUOTE]),
+    KeyAction(False, get_keys("off")),
+    KeyAction(True, [Keycode.SHIFT, Keycode.QUOTE]),
+    KeyAction(False, [Keycode.ENTER]),
+    ], 0xFF0000),
     ([], 0xFFFF00),
-    ([], 0x00FF00),
-    ([], 0x00FFFF),
+    ([KeyAction(True, [Keycode.CONTROL, map_key("w")])], 0x00FF00),
+    ([KeyAction(True, [Keycode.CONTROL, map_key("x")])], 0x00FFFF),
     ]
 
 while True:
