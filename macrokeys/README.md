@@ -1,6 +1,10 @@
 
 # Purpose
 
+To complement my portable keyboard with a set of macro keys, predefined
+with shortcuts for ViM, screen etc. I used the
+[NeoKey Emoji Keyboard guide](https://learn.adafruit.com/neokey-emoji-keyboard)
+and changed the code to emit sequences of characters instead of emojis.
 
 # Links
 
