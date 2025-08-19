@@ -22,6 +22,7 @@ keyboard = Keyboard(usb_hid.devices)
 # states for key presses
 key_states = [False, False, False, False]
 
+
 def map_key(key):
     """
     map character to USB HID Keycode constant
@@ -53,6 +54,7 @@ class KeyAction:
     function and have a send() function that would send the key presses,
     however it would make long lines if used in list of KeyAction objects.
     """
+
     def __init__(self, atonce, vals):
         """
         If the 'atonce' argument is set to True all the values in 'vals'
@@ -67,20 +69,25 @@ class KeyAction:
 
 
 # switch action definitons
-switches = [([KeyAction(True, [Keycode.SHIFT, map_key(":")]),
-    KeyAction(False, get_keys("set paste")),
-    KeyAction(False, Keycode.ENTER),
-    KeyAction(True, [Keycode.SHIFT, map_key(":")]),
-    KeyAction(False, get_keys("set mouse=")),
-    KeyAction(True, [Keycode.SHIFT, Keycode.QUOTE]),
-    KeyAction(False, get_keys("off")),
-    KeyAction(True, [Keycode.SHIFT, Keycode.QUOTE]),
-    KeyAction(False, [Keycode.ENTER]),
-    ], 0xFF0000),
+switches = [
+    (
+        [
+            KeyAction(True, [Keycode.SHIFT, map_key(":")]),
+            KeyAction(False, get_keys("set paste")),
+            KeyAction(False, Keycode.ENTER),
+            KeyAction(True, [Keycode.SHIFT, map_key(":")]),
+            KeyAction(False, get_keys("set mouse=")),
+            KeyAction(True, [Keycode.SHIFT, Keycode.QUOTE]),
+            KeyAction(False, get_keys("off")),
+            KeyAction(True, [Keycode.SHIFT, Keycode.QUOTE]),
+            KeyAction(False, [Keycode.ENTER]),
+        ],
+        0xFF0000,
+    ),
     ([], 0xFFFF00),
     ([KeyAction(True, [Keycode.CONTROL, map_key("w")])], 0x00FF00),
     ([KeyAction(True, [Keycode.CONTROL, map_key("x")])], 0x00FFFF),
-    ]
+]
 
 while True:
     # switch debouncing (TODO: use the debouncer library ?)
@@ -106,4 +113,3 @@ while True:
                         keyboard.send(val)
                         time.sleep(0.01)
             key_states[i] = True
-
