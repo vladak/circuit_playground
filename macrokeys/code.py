@@ -30,10 +30,10 @@ def map_key(key):
         return getattr(Keycode, key.upper())
     if key == " ":
         return Keycode.SPACE
-    if key == ";":
+    if key == ";" or key == ":":
         return Keycode.SEMICOLON
 
-    return None
+    raise ValueError(f"unsupported key: '{key}'")
 
 
 def get_keys(vals):
