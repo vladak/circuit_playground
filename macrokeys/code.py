@@ -31,7 +31,7 @@ def map_key(key):
         return getattr(Keycode, key.upper())
     if key == " ":
         return Keycode.SPACE
-    if key == ";" or key == ":":
+    if key in (";", ":"):
         return Keycode.SEMICOLON
     if key == "=":
         return Keycode.EQUALS
@@ -46,6 +46,7 @@ def get_keys(vals):
     return [map_key(key) for key in vals]
 
 
+# pylint: disable=too-few-public-methods
 class KeyAction:
     """
     storage class representing key action
