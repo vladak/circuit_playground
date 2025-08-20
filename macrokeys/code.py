@@ -93,7 +93,7 @@ switches = [
 while True:
     # switch debouncing (TODO: use the debouncer library ?)
     #  also turns off NeoPixel on release
-    for i in range(0, len(key_states)):
+    for i, _ in enumerate(key_states):
         if not neokey[i] and key_states[i]:
             key_states[i] = False
             neokey.pixels[i] = 0x0
@@ -103,7 +103,7 @@ while True:
     # however that attempts to send all the values at once results in
     # arbitrary key ordering.
     #
-    for i in range(0, len(key_states)):
+    for i, _ in enumerate(key_states):
         if neokey[i] and not key_states[i]:
             neokey.pixels[i] = switches[i][1]
             for action in switches[i][0]:
