@@ -6,6 +6,14 @@ with shortcuts for ViM, screen etc. I used the
 [NeoKey Emoji Keyboard guide](https://learn.adafruit.com/neokey-emoji-keyboard)
 and changed the code to emit sequences of characters instead of emojis.
 
+# Install
+
+With [`circup`](https://github.com/adafruit/circup/) installed and the QtPy
+connected over USB:
+```
+circup install -r requirements.txt
+```
+
 # Links
 
 - [NeoKey Emoji Keyboard guide](https://learn.adafruit.com/neokey-emoji-keyboard)
