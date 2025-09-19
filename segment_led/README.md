@@ -8,3 +8,5 @@ Inspiration:
 
 Guides:
   - https://learn.adafruit.com/adafruit-led-backpack
+  - https://learn.adafruit.com/adafruit-esp32-s3-feather/i2c-external-sensor
+
