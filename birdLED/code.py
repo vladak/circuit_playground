@@ -210,11 +210,9 @@ def main():
             "lux": lux,
             "brightness_max": brightness_max,
             # pylint: disable=no-member
-            "cpu_temp": microcontroller.cpu.temperature
+            "cpu_temp": microcontroller.cpu.temperature,
         }
-        publish_stamp = publish_data(
-            mqtt_client, pixels, publish_stamp, veml7700, data
-        )
+        publish_stamp = publish_data(mqtt_client, pixels, publish_stamp, veml7700, data)
 
         display_pixels(pixels, brightness_max)
 
@@ -241,7 +239,9 @@ def publish_data(mqtt_client, pixels, publish_stamp, veml7700, data):
 
     logger.debug(f"publish stamp: {publish_stamp}")
     # TODO: use adafruit time diff library
-    if publish_stamp < time.monotonic_ns() // 1_000_000_000 - 10:  # TODO: make this configurable
+    if (
+        publish_stamp < time.monotonic_ns() // 1_000_000_000 - 10
+    ):  # TODO: make this configurable
         # TODO: monitor the temperature and scale the brightness down if too hot
         try:
             mqtt_client.publish(
