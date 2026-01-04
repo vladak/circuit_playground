@@ -25,10 +25,8 @@ import supervisor
 
 # pylint: disable=import-error
 import wifi
-from rainbowio import colorwheel
 
 from logutil import get_log_level
-from timeutil import get_time
 
 try:
     from secrets import secrets
@@ -212,7 +210,7 @@ def main():
             # pylint: disable=no-member
             "cpu_temp": microcontroller.cpu.temperature,
         }
-        publish_stamp = publish_data(mqtt_client, pixels, publish_stamp, veml7700, data)
+        publish_stamp = publish_data(mqtt_client, publish_stamp, data)
 
         display_pixels(pixels, brightness_max)
 
@@ -227,7 +225,7 @@ def main():
 
 
 # pylint: disable=too-many-arguments
-def publish_data(mqtt_client, pixels, publish_stamp, veml7700, data):
+def publish_data(mqtt_client, publish_stamp, data):
     """
     Publish metrics to MQTT topic.
 
