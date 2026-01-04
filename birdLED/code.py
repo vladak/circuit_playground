@@ -12,7 +12,6 @@ import traceback
 
 import adafruit_logging as logging
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
-import adafruit_ntp
 import adafruit_veml7700
 import board
 import microcontroller
@@ -147,20 +146,6 @@ def check_mandatory_tunables():
             bail(f"{value} must be positive integer and less than 24")
 
 
-def blink(pixels, color, brightness):
-    """
-    Blink the NeoPixel LEDs a specific color.
-
-    :param tuple color: The color the LEDs will blink.
-    """
-    pixels.brightness = brightness
-    pixels.fill(color)
-    time.sleep(0.5)
-    pixels.fill((0, 0, 0))
-    time.sleep(0.5)
-    pixels.show()
-
-
 # simple inverted range mapper, like Arduino map() but inverted
 def map_range_cap_inv(s, a1, a2, b1, b2):
     """
@@ -197,13 +182,9 @@ def main():
     # pylint: disable=no-member
     i2c = board.STEMMA_I2C()
     veml7700 = adafruit_veml7700.VEML7700(i2c)
+    # TODO: tune the sensitivity of the light sensor
 
     pool = socketpool.SocketPool(wifi.radio)
-
-    logger.debug("setting NTP up")
-    # The code is supposed to be running in specific time zone
-    # with NTP server running on the default router.
-    ntp = adafruit_ntp.NTP(pool, server=str(wifi.radio.ipv4_gateway), tz_offset=1)
 
     mqtt_client = MQTT.MQTT(
         broker=secrets[BROKER],
@@ -217,22 +198,29 @@ def main():
     logger.info("Connecting to MQTT broker")
     mqtt_client.connect()
 
-    pixels.fill(0)
+    # initialize the pixels with given color and 0 brightness
+    pixels.fill((255, 100, 0))  # TODO: make this tunable
     pixels.show()
-    colors = [0, 0]
-    hue = 0
     publish_stamp = 0
-    brightness = 0
     while True:
-        brightness, publish_stamp = get_brightness(
-            mqtt_client, ntp, pixels, publish_stamp, veml7700, brightness
+        brightness_max, light, lux = get_brightness(veml7700)
+
+        data = {
+            "light": light,
+            "lux": lux,
+            "brightness_max": brightness_max,
+            # pylint: disable=no-member
+            "cpu_temp": microcontroller.cpu.temperature
+        }
+        publish_stamp = publish_data(
+            mqtt_client, pixels, publish_stamp, veml7700, data
         )
 
-        hue = display_rainbow(colors, hue, pixels)
+        display_pixels(pixels, brightness_max)
 
         # To handle MQTT ping. Also used not to loop too quickly.
         try:
-            mqtt_client.loop(0.1)
+            mqtt_client.loop(0.01)
         except (OSError, MQTT.MMQTTException) as loop_exc:
             logger.error(f"failed to publish: {loop_exc}")
             # If the reconnect fails with another exception, it is time to reload
@@ -241,39 +229,24 @@ def main():
 
 
 # pylint: disable=too-many-arguments
-def get_brightness(mqtt_client, ntp, pixels, publish_stamp, veml7700, brightness):
+def publish_data(mqtt_client, pixels, publish_stamp, veml7700, data):
     """
-    Acquire light metrics and publish them.
-    Do this only once a second or so not to spam the MQTT topic too much.
-    If called when it is not time yet for the sensor readings, return the original
-    brightness value passed in as a parameter.
+    Publish metrics to MQTT topic.
 
-    Return the brightness level based on the light value and the time of publish.
+    Do this only once in a while in order not to spam the MQTT topic too much.
+
+    Return the time of publish (which may be the original time passed in).
     """
     logger = logging.getLogger(__name__)
 
     logger.debug(f"publish stamp: {publish_stamp}")
-    if publish_stamp < time.monotonic_ns() // 1_000_000_000 - 1:
-        light = veml7700.light
-        lux = veml7700.lux
-        logger.debug(f"Ambient light: {light}")
-        logger.debug(f"Lux: {lux}")
-
-        brightness = set_brightness(light, ntp, pixels)
-
+    # TODO: use adafruit time diff library
+    if publish_stamp < time.monotonic_ns() // 1_000_000_000 - 10:  # TODO: make this configurable
         # TODO: monitor the temperature and scale the brightness down if too hot
         try:
             mqtt_client.publish(
                 secrets[MQTT_TOPIC],
-                json.dumps(
-                    {
-                        "light": light,
-                        "lux": lux,
-                        "brightness": brightness,
-                        # pylint: disable=no-member
-                        "cpu_temp": microcontroller.cpu.temperature,
-                    }
-                ),
+                json.dumps(data),
             )
             publish_stamp = time.monotonic_ns() // 1_000_000_000
         except (OSError, MQTT.MMQTTException) as pub_exc:
@@ -282,44 +255,46 @@ def get_brightness(mqtt_client, ntp, pixels, publish_stamp, veml7700, brightness
             # via the generic exception handling code around main().
             mqtt_client.reconnect()
 
-    return brightness, publish_stamp
+    return publish_stamp
 
 
-def display_rainbow(colors, hue, pixels):
+def display_pixels(pixels, brightness_max, brightness_min=0.1):
     """
-    Display changing rainbow using the pixels.
-    Assumes 5x5 Neopixel BFF.
+    Change pixels in a complete round of iterations for given brightness level.
 
-    Return current hue value so that it can be used in the caller
-    and passed in the next call as the hue argument.
-    """
-    # TODO: fluctuate the brightness (within given boundary) for better effect
-    for _ in range(10):
-        # Use a rainbow of colors, shifting each column of pixels
-        hue = hue + 7
-        if hue >= 256:
-            hue = hue - 256
-
-        colors[1] = colorwheel(hue)
-        # Scoot the old text left by 1 pixel
-        pixels[0:20] = pixels[5:25]
-
-        # Draw in the next line of text
-        for y in range(5):
-            # Select black or color depending on the bitmap pixel
-            pixels[20 + y] = colors[1]
-
-        pixels.show()
-        time.sleep(0.1)
-
-    return hue
-
-
-def set_brightness(light, ntp, pixels):
-    """
-    Set brightness of the pixels based on current light level and time.
+    The minimal brightness level is stricly greater than zero otherwise this
+    would create unwelcome effect of darkness blip in between the function call.
     """
     logger = logging.getLogger(__name__)
+
+    sleep_duration = 0.1
+    brightness = brightness_min
+
+    logger.debug("brightness cycle start")
+    while brightness <= brightness_max:
+        pixels.brightness = brightness
+        pixels.show()
+        time.sleep(sleep_duration)
+        brightness += 0.01
+    brightness = brightness_max
+    while brightness >= brightness_min:
+        pixels.brightness = brightness
+        pixels.show()
+        time.sleep(sleep_duration)
+        brightness -= 0.01
+    logger.debug("brightness cycle end")
+
+
+def get_brightness(veml7700):
+    """
+    Get maximum brightness based on current light level.
+    """
+    logger = logging.getLogger(__name__)
+
+    light = veml7700.light
+    lux = veml7700.lux
+    logger.debug(f"Ambient light: {light}")
+    logger.debug(f"Lux: {lux}")
 
     # Map the light value contiguously into the brightness range.
     brightness = map_range_cap_inv(
@@ -329,15 +304,9 @@ def set_brightness(light, ntp, pixels):
         secrets.get(BRIGHTNESS_RANGE)[0],
         secrets.get(BRIGHTNESS_RANGE)[1],
     )
-    # Scale the brightness down during certain hours.
-    cur_hr, cur_min = get_time(ntp)
-    logger.debug(f"current time: {cur_hr:02}:{cur_min:02}")
-    if secrets.get(HOURS_RANGE)[0] <= cur_hr <= secrets.get(HOURS_RANGE)[1]:
-        logger.debug(f"scaling brightness from {brightness} down by factor of 2")
-        brightness = max(brightness / 2, secrets.get(BRIGHTNESS_RANGE)[0])
-    logger.debug(f"brightness -> {brightness}")
-    pixels.brightness = brightness
-    return brightness
+
+    logger.debug(f"brightness = {brightness}")
+    return brightness, light, lux
 
 
 try:
