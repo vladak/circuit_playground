@@ -118,11 +118,19 @@ def main():
     while True:
         watchdog.feed()
 
-        brightness_max, light, lux = get_brightness(veml7700)
+        light = veml7700.light
+        lux = veml7700.lux
+        logger.debug(f"Ambient light: {light}")
+        logger.debug(f"Lux: {lux}")
 
+        brightness_max = get_brightness(light)
+
+        data = {}
+        if light is not None:
+            data["light"] = light
+        if lux is not None:
+            data["lux"] = lux
         data = {
-            "light": light,
-            "lux": lux,
             "brightness_max": brightness_max,
             # pylint: disable=no-member
             "cpu_temp": microcontroller.cpu.temperature,
@@ -203,16 +211,11 @@ def display_pixels(pixels, brightness_max, brightness_min=0.1):
     logger.debug("brightness cycle end")
 
 
-def get_brightness(veml7700):
+def get_brightness(light):
     """
     Get maximum brightness based on current light level.
     """
     logger = logging.getLogger(__name__)
-
-    light = veml7700.light
-    lux = veml7700.lux
-    logger.debug(f"Ambient light: {light}")
-    logger.debug(f"Lux: {lux}")
 
     # Map the light value contiguously into the brightness range.
     brightness = map_range_cap_inv(
@@ -224,7 +227,7 @@ def get_brightness(veml7700):
     )
 
     logger.debug(f"brightness = {brightness}")
-    return brightness, light, lux
+    return brightness
 
 
 try:
