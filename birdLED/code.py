@@ -26,17 +26,21 @@ import supervisor
 # pylint: disable=import-error
 import wifi
 
+# pylint: disable=no-name-in-module
+from microcontroller import watchdog
+from watchdog import WatchDogMode, WatchDogTimeout
+
 from configutil import (
-    check_mandatory_tunables,
-    BROKER_PORT,
-    MQTT_TOPIC,
+    BRIGHTNESS_RANGE,
     BROKER,
+    BROKER_PORT,
+    LIGHT_RANGE,
+    LOG_LEVEL,
+    MQTT_TOPIC,
     PASSWORD,
     SSID,
-    LOG_LEVEL,
-    BRIGHTNESS_RANGE,
-    LIGHT_RANGE,
     SecretsException,
+    check_mandatory_tunables,
 )
 from logutil import get_log_level
 
@@ -69,6 +73,12 @@ def main():
     log_level = get_log_level(secrets[LOG_LEVEL])
     logger = logging.getLogger(__name__)
     logger.setLevel(log_level)
+
+    # The initialization code below should not take long,
+    # however the light changes in the endless loop takes couple of seconds,
+    # so the watchdog timeout should be more than that.
+    watchdog.timeout = 10
+    watchdog.mode = WatchDogMode.RAISE
 
     logger.info("Running")
 
@@ -106,6 +116,8 @@ def main():
     pixels.show()
     publish_stamp = 0
     while True:
+        watchdog.feed()
+
         brightness_max, light, lux = get_brightness(veml7700)
 
         data = {
@@ -219,7 +231,7 @@ except SecretsException as e:
 except ConnectionError as e:
     # When this happens, it usually means that the microcontroller's wifi/networking is botched.
     # The only way to recover is to perform hard reset.
-    print("Performing hard reset")
+    print(f"Performing hard reset: {e}")
     microcontroller.reset()  # pylint: disable=no-member
 except MemoryError as e:
     # This is usually the case of delayed exception from the 'import wifi' statement,
@@ -227,7 +239,7 @@ except MemoryError as e:
     # after a sequence of ConnectionError exceptions thrown from withing the wifi module.
     # Should not happen given the above 'except ConnectionError',
     # however adding that here just in case.
-    print("Performing hard reset")
+    print(f"Performing hard reset: {e}")
     microcontroller.reset()  # pylint: disable=no-member
 except Exception as e:  # pylint: disable=broad-except
     # This assumes that such exceptions are quite rare.
@@ -237,3 +249,6 @@ except Exception as e:  # pylint: disable=broad-except
     print(traceback.format_exception(None, e, e.__traceback__))
     print("Performing code reload")
     supervisor.reload()
+except WatchDogTimeout as e:
+    print(f"Performing hard reset: {e}")
+    microcontroller.reset()  # pylint: disable=no-member
