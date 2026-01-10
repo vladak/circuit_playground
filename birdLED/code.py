@@ -77,7 +77,7 @@ def main():
     # The initialization code below should not take long,
     # however the light changes in the endless loop takes couple of seconds,
     # so the watchdog timeout should be more than that.
-    watchdog.timeout = 10
+    watchdog.timeout = 16
     watchdog.mode = WatchDogMode.RAISE
 
     logger.info("Running")
@@ -176,6 +176,9 @@ def publish_data(mqtt_client, publish_stamp, data):
 def display_pixels(pixels, brightness_max, brightness_min=0.1):
     """
     Change pixels in a complete round of iterations for given brightness level.
+
+    This function takes around 8 seconds to complete.
+    The watchdog timeout in the main() has to be set accordingly.
 
     The minimal brightness level is stricly greater than zero otherwise this
     would create unwelcome effect of darkness blip in between the function call.
