@@ -74,18 +74,18 @@ def main():
     logger = logging.getLogger(__name__)
     logger.setLevel(log_level)
 
-    # The initialization code below should not take long,
-    # however the light changes in the endless loop takes couple of seconds,
-    # so the watchdog timeout should be more than that.
-    watchdog.timeout = 16
-    watchdog.mode = WatchDogMode.RAISE
-
     logger.info("Running")
 
     logger.info(f"Connecting to wifi {secrets[SSID]}")
     wifi.radio.connect(secrets[SSID], secrets[PASSWORD], timeout=10)
     logger.info(f"Connected to {secrets[SSID]}")
     logger.debug(f"IP: {wifi.radio.ipv4_address}")
+
+    # The initialization code below should not take long,
+    # however the light changes in the endless loop takes couple of seconds,
+    # so the watchdog timeout should be more than that.
+    watchdog.timeout = 16
+    watchdog.mode = WatchDogMode.RAISE
 
     # Assumes Adafruit 5x5 NeoPixel Grid BFF
     pixels = neopixel.NeoPixel(
