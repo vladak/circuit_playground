@@ -167,6 +167,7 @@ def publish_data(mqtt_client, publish_stamp, data):
     ):  # TODO: make this configurable
         # TODO: monitor the temperature and scale the brightness down if too hot
         try:
+            logger.debug(f"Publishing to MQTT: {data}")
             mqtt_client.publish(
                 secrets[MQTT_TOPIC],
                 json.dumps(data),
