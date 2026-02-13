@@ -130,11 +130,10 @@ def main():
             data["light"] = light
         if lux is not None:
             data["lux"] = lux
-        data = {
-            "brightness_max": brightness_max,
-            # pylint: disable=no-member
-            "cpu_temp": microcontroller.cpu.temperature,
-        }
+        data["brightness_max"] = brightness_max
+        # pylint: disable=no-member
+        data["cpu_temp"] = microcontroller.cpu.temperature
+
         publish_stamp = publish_data(mqtt_client, publish_stamp, data)
 
         display_pixels(pixels, brightness_max)
