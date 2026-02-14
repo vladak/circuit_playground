@@ -208,6 +208,7 @@ def display_pixels(pixels, brightness_max, brightness_min=0.1):
         pixels.show()
         time.sleep(sleep_duration)
         brightness -= 0.01
+    # TODO: report duration
     logger.debug("brightness cycle end")
 
 
