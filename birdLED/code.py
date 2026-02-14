@@ -84,6 +84,8 @@ def main():
     # The initialization code below should not take long,
     # however the light changes in the endless loop takes couple of seconds,
     # so the watchdog timeout should be more than that.
+    # Also, placed after the wifi connect it does not have to account
+    # for the wifi connect timeout.
     watchdog.timeout = 16
     watchdog.mode = WatchDogMode.RAISE
 
