@@ -26,11 +26,15 @@ secrets = {
     # The max brightness is the highest brightness to use. It defaults to 0.9, or "90%".
     # At this level the Neopixel BFF can get pretty hot.
     "brightness_range": (0.1, 0.9),
-    # max light value should correspond to a state when the **some** light is on
+    # max light value should correspond to a state when **some** light is on
     "light_range": (10, 50),
+    "light_gain": 2,
     "hours_range": (9, 18),
 }
 ```
+
+`light_gain` sets the VEML7700 sensor light sensitivity and is optional.
+Can be either `1` or `2` if set. The `light_range` needs to be set accordingly.
 
 ## Install
 

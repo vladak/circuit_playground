@@ -20,6 +20,7 @@ SSID = "ssid"
 LOG_LEVEL = "log_level"
 BRIGHTNESS_RANGE = "brightness_range"
 LIGHT_RANGE = "light_range"
+LIGHT_GAIN = "light_gain"
 HOURS_RANGE = "hours_range"
 
 
@@ -75,7 +76,7 @@ def check_tuple(name, mandatory=True, numitems=2):
         bail(f"tuple must have {numitems} items: {value}")
 
 
-def check_mandatory_tunables():
+def check_tunables():
     """
     Check that mandatory tunables are present and of correct type.
     Will exit the program on error.
@@ -90,6 +91,7 @@ def check_mandatory_tunables():
 
     check_tuple(BRIGHTNESS_RANGE)
     check_tuple(LIGHT_RANGE)
+    check_int(LIGHT_GAIN, mandatory=False)
     check_tuple(HOURS_RANGE)
 
     # Brightness must be a float or integer between 0.0 and 1.0, where 0.0 is off, and 1.0 is max.

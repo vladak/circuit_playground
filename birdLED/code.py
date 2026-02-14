@@ -35,12 +35,13 @@ from configutil import (
     BROKER,
     BROKER_PORT,
     LIGHT_RANGE,
+    LIGHT_GAIN,
     LOG_LEVEL,
     MQTT_TOPIC,
     PASSWORD,
     SSID,
     SecretsException,
-    check_mandatory_tunables,
+    check_tunables,
 )
 from logutil import get_log_level
 
@@ -68,7 +69,7 @@ def main():
     """
     main loop
     """
-    check_mandatory_tunables()
+    check_tunables()
 
     log_level = get_log_level(secrets[LOG_LEVEL])
     logger = logging.getLogger(__name__)
@@ -97,7 +98,16 @@ def main():
     # pylint: disable=no-member
     i2c = board.STEMMA_I2C()
     veml7700 = adafruit_veml7700.VEML7700(i2c)
-    # TODO: tune the sensitivity of the light sensor
+    light_gain = secrets.get(LIGHT_GAIN)
+    if light_gain is not None:
+        logger.info(f"Setting light gain to {light_gain}")
+        if light_gain == 1:
+            light_gain = adafruit_veml7700.VEML7700.ALS_GAIN_1
+        elif light_gain == 2:
+            light_gain = adafruit_veml7700.VEML7700.ALS_GAIN_2
+        else:
+            raise ValueError(f"invalid light gain value: {light_gain}")
+        veml7700.light_gain = light_gain
 
     pool = socketpool.SocketPool(wifi.radio)
 
@@ -114,7 +124,7 @@ def main():
     mqtt_client.connect()
 
     # initialize the pixels with given color and 0 brightness
-    pixels.fill((255, 100, 0))  # TODO: make this tunable
+    pixels.fill((255, 100, 0))  # TODO: make the color this tunable
     pixels.show()
     publish_stamp = 0
     while True:
